@@ -2815,3 +2815,8 @@ def map_function(batch, *args, function=None, with_indices=None, **fn_kwargs):
             result[key] = []
 
     return result
+
+
+if config.TORCH_AVAILABLE:
+    import torch
+    torch.utils.data.Dataset.register(Dataset)
