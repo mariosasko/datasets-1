@@ -52,8 +52,8 @@ class SubSplitInfo:
     """Wrapper around a sub split info.
     This class expose info on the subsplit:
     ```
-    ds, info = datasets.load_dataset(..., split='train[75%:]', with_info=True)
-    info.splits['train[75%:]'].num_examples
+    ds = datasets.load_dataset(..., split='train[75%:]')
+    ds.info.splits['train[75%:]'].num_examples
     ```
     """
 

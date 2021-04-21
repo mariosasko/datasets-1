@@ -380,6 +380,8 @@ class _RelativeInstruction:
     def __post_init__(self):
         assert self.unit is None or self.unit in ["%", "abs"]
         assert self.rounding is None or self.rounding in ["closest", "pct1_dropremainder"]
+        if self.unit == "abs" and self.rounding is not None:
+            raise AssertionError("Rounding is not supported when using absolute slicing unit.")
         if self.unit == "%" and self.from_ is not None and abs(self.from_) > 100:
             raise AssertionError("Percent slice boundaries must be > -100 and < 100.")
         if self.unit == "%" and self.to is not None and abs(self.to) > 100:
@@ -392,9 +394,10 @@ def _str_to_read_instruction(spec):
     if not res:
         raise AssertionError("Unrecognized instruction format: %s" % spec)
     unit = "%" if res.group("from_pct") or res.group("to_pct") else "abs"
+    rounding = "closest" if res.group("rounding") is None and unit == "%" else res.group("rounding")
     return ReadInstruction(
         split_name=res.group("split"),
-        rounding=res.group("rounding") if res.group("rounding") else "closest",
+        rounding=rounding,
         from_=int(res.group("from")) if res.group("from") else None,
         to=int(res.group("to")) if res.group("to") else None,
         unit=unit,
