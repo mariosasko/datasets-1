@@ -381,11 +381,12 @@ class _RelativeInstruction:
         assert self.unit is None or self.unit in ["%", "abs"]
         assert self.rounding is None or self.rounding in ["closest", "pct1_dropremainder"]
         if self.unit == "abs" and self.rounding is not None:
-            raise AssertionError("Rounding is not supported when using absolute slicing unit.")
+            raise AssertionError("It is forbidden to specify rounding when using absolute slicing unit.")
         if self.unit == "%" and self.from_ is not None and abs(self.from_) > 100:
             raise AssertionError("Percent slice boundaries must be > -100 and < 100.")
         if self.unit == "%" and self.to is not None and abs(self.to) > 100:
             raise AssertionError("Percent slice boundaries must be > -100 and < 100.")
+        self.__dict__["rounding"] = "closeset" if self.rounding is None and self.unit == "%" else self.rounding
 
 
 def _str_to_read_instruction(spec):
@@ -394,10 +395,9 @@ def _str_to_read_instruction(spec):
     if not res:
         raise AssertionError("Unrecognized instruction format: %s" % spec)
     unit = "%" if res.group("from_pct") or res.group("to_pct") else "abs"
-    rounding = "closest" if res.group("rounding") is None and unit == "%" else res.group("rounding")
     return ReadInstruction(
         split_name=res.group("split"),
-        rounding=rounding,
+        rounding=res.group("rounding"),
         from_=int(res.group("from")) if res.group("from") else None,
         to=int(res.group("to")) if res.group("to") else None,
         unit=unit,
@@ -499,12 +499,12 @@ class ReadInstruction:
         result._init(relative_instructions)  # pylint: disable=protected-access
         return result
 
-    def __init__(self, split_name, rounding="closest", from_=None, to=None, unit=None):
+    def __init__(self, split_name, rounding=None, from_=None, to=None, unit=None):
         """Initialize ReadInstruction.
 
         Args:
             split_name (str): name of the split to read. Eg: 'train'.
-            rounding (str): The rounding behaviour to use when percent slicing is
+            rounding (str, optional): The rounding behaviour to use when percent slicing is
                 used. Ignored when slicing with absolute indices.
                 Possible values:
                  - 'closest' (default): The specified percentages are rounded to the
@@ -577,10 +577,11 @@ class ReadInstruction:
         if not isinstance(other, ReadInstruction):
             msg = "ReadInstruction can only be added to another ReadInstruction obj."
             raise AssertionError(msg)
+        self_ris = self._relative_instructions
         other_ris = other._relative_instructions  # pylint: disable=protected-access
-        if self._relative_instructions[0].rounding != other_ris[0].rounding:
+        if self_ris[0].unit != "abs" and other_ris[0].unit != "abs" and self._relative_instructions[0].rounding != other_ris[0].rounding:
             raise AssertionError("It is forbidden to sum ReadInstruction instances with different rounding values.")
-        return self._read_instruction_from_relative_instructions(self._relative_instructions + other_ris)
+        return self._read_instruction_from_relative_instructions(self_ris + other_ris)
 
     def __str__(self):
         return self.to_spec()
