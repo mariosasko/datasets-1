@@ -386,7 +386,8 @@ class _RelativeInstruction:
             raise AssertionError("Percent slice boundaries must be > -100 and < 100.")
         if self.unit == "%" and self.to is not None and abs(self.to) > 100:
             raise AssertionError("Percent slice boundaries must be > -100 and < 100.")
-        self.__dict__["rounding"] = "closeset" if self.rounding is None and self.unit == "%" else self.rounding
+        # Update via __dict__ due to instance being "frozen"
+        self.__dict__["rounding"] = "closest" if self.rounding is None and self.unit == "%" else self.rounding
 
 
 def _str_to_read_instruction(spec):
@@ -579,7 +580,11 @@ class ReadInstruction:
             raise AssertionError(msg)
         self_ris = self._relative_instructions
         other_ris = other._relative_instructions  # pylint: disable=protected-access
-        if self_ris[0].unit != "abs" and other_ris[0].unit != "abs" and self._relative_instructions[0].rounding != other_ris[0].rounding:
+        if (
+            self_ris[0].unit != "abs"
+            and other_ris[0].unit != "abs"
+            and self._relative_instructions[0].rounding != other_ris[0].rounding
+        ):
             raise AssertionError("It is forbidden to sum ReadInstruction instances with different rounding values.")
         return self._read_instruction_from_relative_instructions(self_ris + other_ris)
 
