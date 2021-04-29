@@ -287,6 +287,8 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
             raise ValueError(
                 f"The table can't have duplicated columns but columns {duplicated_columns} are duplicated."
             )
+        
+        self._data = update_metadata_with_features(self._data, self.features)
 
     @classmethod
     def from_file(
@@ -806,7 +808,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
         casted_schema.set(field_index, casted_field)
         self._data = self._data.cast(casted_schema)
         self.info.features = Features.from_arrow_schema(self._data.schema)
-        self._data = update_metadata_with_features(self._data, self.features)
+        # self._data = update_metadata_with_features(self._data, self.features)
 
     @deprecated(help_message="Use Dataset.flatten instead.")
     @fingerprint_transform(inplace=True)
@@ -822,7 +824,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
             else:
                 break
         self.info.features = Features.from_arrow_schema(self._data.schema)
-        self._data = update_metadata_with_features(self._data, self.features)
+        # self._data = update_metadata_with_features(self._data, self.features)
         logger.info(
             "Flattened dataset from depth {} to depth {}.".format(depth, 1 if depth + 1 < max_depth else "unknown")
         )
@@ -843,7 +845,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
             else:
                 break
         dataset.info.features = Features.from_arrow_schema(dataset._data.schema)
-        dataset._data = update_metadata_with_features(dataset._data, dataset.features)
+        # dataset._data = update_metadata_with_features(dataset._data, dataset.features)
         logger.info(
             "Flattened dataset from depth {} to depth {}.".format(depth, 1 if depth + 1 < max_depth else "unknown")
         )
@@ -991,7 +993,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
             del self._info.features[column_name]
 
         self._data = self._data.drop(column_names)
-        self._data = update_metadata_with_features(self._data, self.features)
+        # self._data = update_metadata_with_features(self._data, self.features)
 
     @fingerprint_transform(inplace=False)
     def remove_columns(self, column_names: Union[str, List[str]], new_fingerprint) -> "Dataset":
@@ -1023,7 +1025,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
             del dataset._info.features[column_name]
 
         dataset._data = dataset._data.drop(column_names)
-        dataset._data = update_metadata_with_features(dataset._data, dataset.features)
+        # dataset._data = update_metadata_with_features(dataset._data, dataset.features)
         dataset._fingerprint = new_fingerprint
         return dataset
 
@@ -1068,7 +1070,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
         )
 
         self._data = self._data.rename_columns(new_column_names)
-        self._data = update_metadata_with_features(self._data, self.features)
+        # self._data = update_metadata_with_features(self._data, self.features)
 
     @fingerprint_transform(inplace=False)
     def rename_column(self, original_column_name: str, new_column_name: str, new_fingerprint) -> "Dataset":
@@ -1114,7 +1116,7 @@ class Dataset(DatasetInfoMixin, IndexableMixin):
         )
 
         dataset._data = dataset._data.rename_columns(new_column_names)
-        dataset._data = update_metadata_with_features(dataset._data, dataset.features)
+        # dataset._data = update_metadata_with_features(dataset._data, dataset.features)
         dataset._fingerprint = new_fingerprint
         return dataset
 
@@ -2966,7 +2968,8 @@ def concatenate_datasets(
 
     # Concatenate tables
     table = concat_tables([dset._data for dset in dsets if len(dset._data) > 0], axis=axis)
-    table = update_metadata_with_features(table, None)
+    # if axis == 1:
+    #     table = update_metadata_with_features(table, None)
 
     def apply_offset_to_indices_table(table, offset):
         if offset == 0:
