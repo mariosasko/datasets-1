@@ -2968,8 +2968,8 @@ def concatenate_datasets(
 
     # Concatenate tables
     table = concat_tables([dset._data for dset in dsets if len(dset._data) > 0], axis=axis)
-    # if axis == 1:
-    #     table = update_metadata_with_features(table, None)
+    if axis == 1:
+        table = update_metadata_with_features(table, None)
 
     def apply_offset_to_indices_table(table, offset):
         if offset == 0:
