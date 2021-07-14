@@ -1,16 +1,23 @@
 import copy
+import os
 from dataclasses import dataclass
 from itertools import cycle, islice, repeat
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional
 
 import numpy as np
 import pyarrow as pa
+from multiprocess import Pool
+
+from datasets.utils.logging import get_logger
 
 from .arrow_dataset import DatasetInfoMixin
 from .features import Features
 from .formatting import PythonFormatter
 from .info import DatasetInfo
 from .splits import NamedSplit
+
+
+logger = get_logger(__name__)
 
 
 def _infer_features_from_batch(batch: Dict[str, list], try_features: Optional[Features] = None) -> Features:
@@ -164,32 +171,70 @@ class RandomlyCyclingMultiSourcesExamplesIterable(CyclingMultiSourcesExamplesIte
 
 class MappedExamplesIterable(_BaseExamplesIterable):
     def __init__(
-        self, ex_iterable: _BaseExamplesIterable, function: Callable, batched: bool = False, batch_size: int = 1000
+        self,
+        ex_iterable: _BaseExamplesIterable,
+        function: Callable,
+        batched: bool = False,
+        batch_size: int = 1000,
+        num_proc: Optional[int] = None,
     ):
+        assert num_proc is None or num_proc > 0, "num_proc must be an integer > 0."
         self.ex_iterable = ex_iterable
         self.function = function
         self.batched = batched
         self.batch_size = batch_size
+        self.num_proc = num_proc
 
     def __iter__(self):
         iterator = iter(self.ex_iterable)
-        for key, example in iterator:
+
+        def transform_single(key, example):
+            # If not batched, apply the transform and yield the example directly
+            return key, self.function(example)
+
+        def transform_batch(key, example):
+            # If batched, first build the batch
+            key_examples_list = [(key, example)] + [
+                (key, example) for key, example in islice(iterator, self.batch_size - 1)
+            ]
+            keys, examples = zip(*key_examples_list)
+            batch = _examples_to_batch(examples)
+            # then apply the transform
+            transformed_batch = self.function(batch)
+            # the new key is the concatenation of the examples keys from the batch
+            new_key = "_".join(str(key) for key in keys)
+            return zip(repeat(new_key), _batch_to_examples(transformed_batch))
+
+        if self.num_proc is None or self.num_proc == 1:
             if self.batched:
-                # If batched, first build the batch
-                key_examples_list = [(key, example)] + [
-                    (key, example) for key, example in islice(iterator, self.batch_size - 1)
-                ]
-                keys, examples = zip(*key_examples_list)
-                batch = _examples_to_batch(examples)
-                # then apply the transform
-                transformed_batch = self.function(batch)
-                # the new key is the concatenation of the examples keys from the batch
-                new_key = "_".join(str(key) for key in keys)
-                # yield one example at a time from the transformed batch
-                yield from zip(repeat(new_key), _batch_to_examples(transformed_batch))
+                for key, example in iterator:
+                    # yield one example at a time from the transformed batch
+                    yield from transform_batch(key, example)
             else:
-                # If not batched, apply the transform and yield the example directly
-                yield key, self.function(example)
+                for key, example in iterator:
+                    yield transform_single(key, example)
+        else:
+            prev_env = copy.deepcopy(os.environ)
+            # check if parallelism if off
+            # from https://github.com/huggingface/tokenizers/blob/bb668bc439dc34389b71dbb8ce0c597f15707b53/tokenizers/src/utils/parallelism.rs#L22
+            if prev_env.get("TOKENIZERS_PARALLELISM", "false").lower() not in (
+                "",
+                "off",
+                "false",
+                "f",
+                "no",
+                "n",
+                "0",
+            ):
+                logger.warning("Setting TOKENIZERS_PARALLELISM=false for forked processes.")
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
+            with Pool(self.num_proc) as pool:
+                os.environ = prev_env
+                if self.batched:
+                    for batch in pool.imap(transform_batch, iterator):
+                        yield from batch
+                else:
+                    yield from pool.imap(transform_single, iterator)
 
     def shuffle_data_sources(self, seed: Optional[int]) -> "MappedExamplesIterable":
         """Shuffle the wrapped examples iterable."""
@@ -367,7 +412,7 @@ class IterableDataset(DatasetInfoMixin):
             shuffling=copy.deepcopy(self._shuffling),
         )
 
-    def map(self, function: Callable, batched: bool = False, batch_size: int = 1000):
+    def map(self, function: Callable, batched: bool = False, batch_size: int = 1000, num_proc: Optional[int] = None):
         """
         Return a dataset with the specified map function. The function is applied on-the-fly on the examples when iterating over the dataset.
 
@@ -386,12 +431,13 @@ class IterableDataset(DatasetInfoMixin):
                 on-the-fly on the examples when you iterate on the dataset.
             batched (:obj:`bool`, default `False`): Provide batch of examples to `function`.
             batch_size (:obj:`int`, optional, default ``1000``): Number of examples per batch provided to `function` if `batched=True`.
-
+            num_proc (`Optional[int]`, default `None`): Number of processes for multiprocessing. By default it doesn't
+                use multiprocessing.
         """
         info = copy.deepcopy(self._info)
         info.features = None
         ex_iterable = MappedExamplesIterable(
-            self._ex_iterable, function=function, batched=batched, batch_size=batch_size
+            self._ex_iterable, function=function, batched=batched, batch_size=batch_size, num_proc=num_proc
         )
         return iterable_dataset(
             ex_iterable=ex_iterable,
