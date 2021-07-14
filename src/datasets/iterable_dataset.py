@@ -188,11 +188,13 @@ class MappedExamplesIterable(_BaseExamplesIterable):
     def __iter__(self):
         iterator = iter(self.ex_iterable)
 
-        def transform_single(key, example):
+        def transform_single(key_and_example):
+            key, example = key_and_example
             # If not batched, apply the transform and yield the example directly
             return key, self.function(example)
 
-        def transform_batch(key, example):
+        def transform_batch(key_and_example):
+            key, example = key_and_example
             # If batched, first build the batch
             key_examples_list = [(key, example)] + [
                 (key, example) for key, example in islice(iterator, self.batch_size - 1)
@@ -207,12 +209,12 @@ class MappedExamplesIterable(_BaseExamplesIterable):
 
         if self.num_proc is None or self.num_proc == 1:
             if self.batched:
-                for key, example in iterator:
+                for key_and_example in iterator:
                     # yield one example at a time from the transformed batch
-                    yield from transform_batch(key, example)
+                    yield from transform_batch(key_and_example)
             else:
-                for key, example in iterator:
-                    yield transform_single(key, example)
+                for key_and_example in iterator:
+                    yield transform_single(key_and_example)
         else:
             prev_env = copy.deepcopy(os.environ)
             # check if parallelism if off
