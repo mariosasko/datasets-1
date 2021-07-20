@@ -131,13 +131,13 @@ class FormatterTest(TestCase):
         pa_table = self._create_dummy_table().drop(["b"])
         formatter = TorchFormatter()
         row = formatter.format_row(pa_table)
-        torch.testing.assert_allclose(row["a"], torch.tensor(_COL_A, dtype=torch.int64)[0])
-        torch.testing.assert_allclose(row["c"], torch.tensor(_COL_C, dtype=torch.float32)[0])
+        torch.testing.assert_close(row["a"], torch.tensor(_COL_A, dtype=torch.int64)[0])
+        torch.testing.assert_close(row["c"], torch.tensor(_COL_C, dtype=torch.float32)[0])
         col = formatter.format_column(pa_table)
-        torch.testing.assert_allclose(col, torch.tensor(_COL_A, dtype=torch.int64))
+        torch.testing.assert_close(col, torch.tensor(_COL_A, dtype=torch.int64))
         batch = formatter.format_batch(pa_table)
-        torch.testing.assert_allclose(batch["a"], torch.tensor(_COL_A, dtype=torch.int64))
-        torch.testing.assert_allclose(batch["c"], torch.tensor(_COL_C, dtype=torch.float32))
+        torch.testing.assert_close(batch["a"], torch.tensor(_COL_A, dtype=torch.int64))
+        torch.testing.assert_close(batch["c"], torch.tensor(_COL_C, dtype=torch.float32))
 
     @require_torch
     def test_torch_formatter_np_array_kwargs(self):
@@ -553,12 +553,12 @@ def test_torch_formatter_sets_default_dtypes(cast_schema, arrow_table):
     formatter = TorchFormatter()
 
     row = formatter.format_row(arrow_table)
-    torch.testing.assert_allclose(row["col_int"], torch.tensor(list_int, dtype=torch.int64)[0])
-    torch.testing.assert_allclose(row["col_float"], torch.tensor(list_float, dtype=torch.float32)[0])
+    torch.testing.assert_close(row["col_int"], torch.tensor(list_int, dtype=torch.int64)[0])
+    torch.testing.assert_close(row["col_float"], torch.tensor(list_float, dtype=torch.float32)[0])
 
     col = formatter.format_column(arrow_table)
-    torch.testing.assert_allclose(col, torch.tensor(list_int, dtype=torch.int64))
+    torch.testing.assert_close(col, torch.tensor(list_int, dtype=torch.int64))
 
     batch = formatter.format_batch(arrow_table)
-    torch.testing.assert_allclose(batch["col_int"], torch.tensor(list_int, dtype=torch.int64))
-    torch.testing.assert_allclose(batch["col_float"], torch.tensor(list_float, dtype=torch.float32))
+    torch.testing.assert_close(batch["col_int"], torch.tensor(list_int, dtype=torch.int64))
+    torch.testing.assert_close(batch["col_float"], torch.tensor(list_float, dtype=torch.float32))
